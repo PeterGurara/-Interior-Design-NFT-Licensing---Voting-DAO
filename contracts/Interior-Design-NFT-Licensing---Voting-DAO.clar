@@ -13,6 +13,12 @@
 (define-constant err-invalid-proposal (err u106))
 (define-constant err-proposal-expired (err u107))
 (define-constant err-already-licensed (err u108))
+(define-constant err-auction-exists (err u109))
+(define-constant err-auction-not-found (err u110))
+(define-constant err-auction-ended (err u111))
+(define-constant err-auction-active (err u112))
+(define-constant err-bid-too-low (err u113))
+(define-constant err-not-auction-owner (err u114))
 
 (define-non-fungible-token design-nft uint)
 
@@ -72,6 +78,17 @@
     submission-hash: (string-ascii 64),
     votes: uint
 })
+
+(define-map design-auctions uint {
+    seller: principal,
+    reserve-price: uint,
+    current-bid: uint,
+    highest-bidder: (optional principal),
+    end-block: uint,
+    settled: bool
+})
+
+(define-map auction-bids {auction-id: uint, bidder: principal} uint)
 
 (define-public (mint-design-nft 
     (title (string-ascii 50))
@@ -218,6 +235,82 @@
         (var-set dao-treasury (+ (var-get dao-treasury) dao-amount))
         (ok true)))
 
+(define-public (start-auction 
+    (token-id uint) 
+    (reserve-price uint) 
+    (duration-blocks uint))
+    (let ((owner (unwrap! (nft-get-owner? design-nft token-id) (err u404)))
+          (end-block (+ stacks-block-height duration-blocks)))
+        (asserts! (is-eq tx-sender owner) err-not-token-owner)
+        (asserts! (is-none (map-get? design-auctions token-id)) err-auction-exists)
+        (asserts! (is-none (map-get? marketplace-listings token-id)) err-listing-exists)
+        (map-set design-auctions token-id {
+            seller: tx-sender,
+            reserve-price: reserve-price,
+            current-bid: u0,
+            highest-bidder: none,
+            end-block: end-block,
+            settled: false
+        })
+        (ok true)))
+
+(define-public (place-bid (token-id uint) (bid-amount uint))
+    (let ((auction (unwrap! (map-get? design-auctions token-id) err-auction-not-found))
+          (current-bid (get current-bid auction))
+          (highest-bidder (get highest-bidder auction))
+          (reserve-price (get reserve-price auction))
+          (end-block (get end-block auction)))
+        (asserts! (< stacks-block-height end-block) err-auction-ended)
+        (asserts! (not (get settled auction)) err-auction-ended)
+        (asserts! (>= bid-amount reserve-price) err-bid-too-low)
+        (asserts! (> bid-amount current-bid) err-bid-too-low)
+        (if (is-some highest-bidder)
+            (try! (stx-transfer? current-bid (as-contract tx-sender) (unwrap-panic highest-bidder)))
+            true)
+        (try! (stx-transfer? bid-amount tx-sender (as-contract tx-sender)))
+        (map-set auction-bids {auction-id: token-id, bidder: tx-sender} bid-amount)
+        (map-set design-auctions token-id (merge auction {
+            current-bid: bid-amount,
+            highest-bidder: (some tx-sender)
+        }))
+        (ok true)))
+
+(define-public (settle-auction (token-id uint))
+    (let ((auction (unwrap! (map-get? design-auctions token-id) err-auction-not-found))
+          (seller (get seller auction))
+          (current-bid (get current-bid auction))
+          (highest-bidder (get highest-bidder auction))
+          (end-block (get end-block auction))
+          (metadata (unwrap! (map-get? design-metadata token-id) (err u404)))
+          (royalty-rate (get royalty-rate metadata))
+          (creator (get creator metadata)))
+        (asserts! (>= stacks-block-height end-block) err-auction-active)
+        (asserts! (not (get settled auction)) err-auction-ended)
+        (if (is-some highest-bidder)
+            (let ((winner (unwrap-panic highest-bidder))
+                  (royalty-amount (/ (* current-bid royalty-rate) u100))
+                  (seller-amount (- current-bid royalty-amount)))
+                (try! (as-contract (stx-transfer? seller-amount tx-sender seller)))
+                (try! (as-contract (stx-transfer? royalty-amount tx-sender creator)))
+                (try! (nft-transfer? design-nft token-id seller winner))
+                (map-set design-auctions token-id (merge auction {settled: true}))
+                (ok true))
+            (begin
+                (map-delete design-auctions token-id)
+                (ok false)))))
+
+(define-public (cancel-auction (token-id uint))
+    (let ((auction (unwrap! (map-get? design-auctions token-id) err-auction-not-found))
+          (seller (get seller auction))
+          (current-bid (get current-bid auction))
+          (highest-bidder (get highest-bidder auction))
+          (end-block (get end-block auction)))
+        (asserts! (is-eq tx-sender seller) err-not-auction-owner)
+        (asserts! (< stacks-block-height end-block) err-auction-ended)
+        (asserts! (is-eq current-bid u0) err-auction-active)
+        (map-delete design-auctions token-id)
+        (ok true)))
+
 (define-read-only (get-last-token-id)
     (ok (var-get last-token-id)))
 
@@ -252,3 +345,14 @@
 
 (define-read-only (get-contest-submission (submission-id uint))
     (ok (map-get? contest-submissions submission-id)))
+
+(define-read-only (get-auction-info (token-id uint))
+    (ok (map-get? design-auctions token-id)))
+
+(define-read-only (get-bid-info (token-id uint) (bidder principal))
+    (ok (map-get? auction-bids {auction-id: token-id, bidder: bidder})))
+
+(define-read-only (is-auction-ended (token-id uint))
+    (match (map-get? design-auctions token-id)
+        auction (ok (>= stacks-block-height (get end-block auction)))
+        (err u404)))
