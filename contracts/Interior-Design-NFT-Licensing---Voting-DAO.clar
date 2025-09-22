@@ -90,6 +90,8 @@
 
 (define-map auction-bids {auction-id: uint, bidder: principal} uint)
 
+(define-map user-favorites {user: principal, token-id: uint} bool)
+
 (define-public (mint-design-nft 
     (title (string-ascii 50))
     (design-type (string-ascii 20))
@@ -311,6 +313,17 @@
         (map-delete design-auctions token-id)
         (ok true)))
 
+(define-public (add-to-favorites (token-id uint))
+    (begin
+        (asserts! (is-some (map-get? design-metadata token-id)) (err u404))
+        (map-set user-favorites {user: tx-sender, token-id: token-id} true)
+        (ok true)))
+
+(define-public (remove-from-favorites (token-id uint))
+    (begin
+        (map-delete user-favorites {user: tx-sender, token-id: token-id})
+        (ok true)))
+
 (define-read-only (get-last-token-id)
     (ok (var-get last-token-id)))
 
@@ -356,3 +369,6 @@
     (match (map-get? design-auctions token-id)
         auction (ok (>= stacks-block-height (get end-block auction)))
         (err u404)))
+
+(define-read-only (is-design-favorited (user principal) (token-id uint))
+    (ok (is-some (map-get? user-favorites {user: user, token-id: token-id}))))

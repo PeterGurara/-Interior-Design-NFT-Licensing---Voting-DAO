@@ -22,6 +22,11 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 - **Quality Metrics**: Aggregate ratings help identify trending designs
 - **Creator Reputation**: Build reputation through consistent quality work
 
+### 💖 Favorite Designs
+- **Personal Collections**: Curate favorite designs for easy access and inspiration
+- **User Personalization**: Bookmark designs to build personal design portfolios
+- **Community Engagement**: Enhance discoverability and user interaction
+
 ## 📋 Contract Functions
 
 ### Core NFT Functions
@@ -49,6 +54,13 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 ```clarity
 (rate-design token-id rating)
 (get-design-rating token-id)
+```
+
+### Favorite System
+```clarity
+(add-to-favorites token-id)
+(remove-from-favorites token-id)
+(is-design-favorited user token-id)
 ```
 
 ### Contest System
@@ -94,11 +106,16 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 
 #### 🗳️ Creating a DAO Proposal
 ```clarity
-(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO create-dao-proposal 
-  "Q4 Design Contest Theme" 
-  "Vote on the theme for our quarterly design contest" 
-  "contest" 
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO create-dao-proposal
+  "Q4 Design Contest Theme"
+  "Vote on the theme for our quarterly design contest"
+  "contest"
   u1440)
+```
+
+#### 💖 Favoriting a Design
+```clarity
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO add-to-favorites u1)
 ```
 
 ## 💰 Tokenomics
@@ -123,6 +140,7 @@ The contract implements several key data structures:
 - **design-licenses**: Licensing agreements and terms
 - **dao-proposals**: Governance proposals and voting data
 - **royalty-splits**: Revenue distribution configurations
+- **user-favorites**: User favorite design mappings
 
 ## 🧪 Testing
 
