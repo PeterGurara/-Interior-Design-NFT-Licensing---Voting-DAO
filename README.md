@@ -27,6 +27,12 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 - **User Personalization**: Bookmark designs to build personal design portfolios
 - **Community Engagement**: Enhance discoverability and user interaction
 
+### 💰 NFT Lending System
+- **Collateral-Based Lending**: Lend NFTs with STX collateral for temporary access
+- **Flexible Terms**: Set custom lending fees and duration periods
+- **Secure Returns**: Automatic NFT return or collateral claim on expiry
+- **Risk Management**: Built-in protections for lenders and borrowers
+
 ## 📋 Contract Functions
 
 ### Core NFT Functions
@@ -61,6 +67,15 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 (add-to-favorites token-id)
 (remove-from-favorites token-id)
 (is-design-favorited user token-id)
+```
+
+### Lending System
+```clarity
+(lend-nft token-id collateral-amount lending-fee duration-blocks)
+(borrow-nft token-id)
+(return-nft token-id)
+(claim-collateral token-id)
+(get-lending-info token-id)
 ```
 
 ### Contest System
@@ -118,6 +133,21 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 (contract-call? .Interior-Design-NFT-Licensing---Voting-DAO add-to-favorites u1)
 ```
 
+#### 💰 Lending an NFT
+```clarity
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO lend-nft u1 u1000000 u50000 u1440)
+```
+
+#### 🔄 Borrowing an NFT
+```clarity
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO borrow-nft u1)
+```
+
+#### ↩️ Returning an NFT
+```clarity
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO return-nft u1)
+```
+
 ## 💰 Tokenomics
 
 ### Royalty Distribution
@@ -131,6 +161,7 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 - 📄 Licensing fees
 - 🏆 Contest entry fees
 - 🤝 Marketplace transaction fees
+- 💰 NFT lending fees
 
 ## 🏗️ Architecture
 
@@ -141,6 +172,7 @@ The contract implements several key data structures:
 - **dao-proposals**: Governance proposals and voting data
 - **royalty-splits**: Revenue distribution configurations
 - **user-favorites**: User favorite design mappings
+- **nft-lendings**: NFT lending agreements with collateral and terms
 
 ## 🧪 Testing
 
@@ -168,6 +200,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🌟 Roadmap
 
+- [x] 💰 NFT Lending System
 - [ ] 📱 Mobile app integration
 - [ ] 🔄 Cross-chain compatibility
 - [ ] 🤖 AI-powered design recommendations

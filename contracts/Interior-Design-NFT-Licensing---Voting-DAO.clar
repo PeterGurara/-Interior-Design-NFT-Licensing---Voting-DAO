@@ -19,6 +19,11 @@
 (define-constant err-auction-active (err u112))
 (define-constant err-bid-too-low (err u113))
 (define-constant err-not-auction-owner (err u114))
+(define-constant err-lending-exists (err u115))
+(define-constant err-lending-not-found (err u116))
+(define-constant err-not-lender (err u117))
+(define-constant err-lending-active (err u118))
+(define-constant err-lending-expired (err u119))
 
 (define-non-fungible-token design-nft uint)
 
@@ -92,7 +97,17 @@
 
 (define-map user-favorites {user: principal, token-id: uint} bool)
 
-(define-public (mint-design-nft 
+(define-map nft-lendings uint {
+    lender: principal,
+    borrower: (optional principal),
+    collateral-amount: uint,
+    lending-fee: uint,
+    duration-blocks: uint,
+    start-block: uint,
+    active: bool
+})
+
+(define-public (mint-design-nft
     (title (string-ascii 50))
     (design-type (string-ascii 20))
     (ipfs-hash (string-ascii 64))
@@ -372,3 +387,74 @@
 
 (define-read-only (is-design-favorited (user principal) (token-id uint))
     (ok (is-some (map-get? user-favorites {user: user, token-id: token-id}))))
+
+(define-public (lend-nft (token-id uint) (collateral-amount uint) (lending-fee uint) (duration-blocks uint))
+    (let ((owner (unwrap! (nft-get-owner? design-nft token-id) (err u404))))
+        (asserts! (is-eq tx-sender owner) err-not-token-owner)
+        (asserts! (is-none (map-get? nft-lendings token-id)) err-lending-exists)
+        (asserts! (is-none (map-get? marketplace-listings token-id)) err-listing-exists)
+        (asserts! (is-none (map-get? design-auctions token-id)) err-auction-exists)
+        (try! (stx-transfer? collateral-amount tx-sender (as-contract tx-sender)))
+        (map-set nft-lendings token-id {
+            lender: tx-sender,
+            borrower: none,
+            collateral-amount: collateral-amount,
+            lending-fee: lending-fee,
+            duration-blocks: duration-blocks,
+            start-block: u0,
+            active: false
+        })
+        (ok true)))
+
+(define-public (borrow-nft (token-id uint))
+    (let ((lending (unwrap! (map-get? nft-lendings token-id) err-lending-not-found))
+          (lender (get lender lending))
+          (collateral-amount (get collateral-amount lending))
+          (lending-fee (get lending-fee lending))
+          (duration-blocks (get duration-blocks lending)))
+        (asserts! (not (get active lending)) err-lending-active)
+        (try! (stx-transfer? lending-fee tx-sender lender))
+        (try! (nft-transfer? design-nft token-id lender tx-sender))
+        (map-set nft-lendings token-id (merge lending {
+            borrower: (some tx-sender),
+            start-block: stacks-block-height,
+            active: true
+        }))
+        (ok true)))
+
+(define-public (return-nft (token-id uint))
+    (let ((lending (unwrap! (map-get? nft-lendings token-id) err-lending-not-found))
+          (borrower (unwrap! (get borrower lending) err-lending-not-found))
+          (lender (get lender lending))
+          (collateral-amount (get collateral-amount lending))
+          (start-block (get start-block lending))
+          (duration-blocks (get duration-blocks lending)))
+        (asserts! (is-eq tx-sender borrower) err-not-token-owner)
+        (asserts! (get active lending) err-lending-not-found)
+        (asserts! (<= (- stacks-block-height start-block) duration-blocks) err-lending-expired)
+        (try! (nft-transfer? design-nft token-id tx-sender lender))
+        (try! (as-contract (stx-transfer? collateral-amount tx-sender borrower)))
+        (map-set nft-lendings token-id (merge lending {
+            borrower: none,
+            start-block: u0,
+            active: false
+        }))
+        (ok true)))
+
+(define-public (claim-collateral (token-id uint))
+    (let ((lending (unwrap! (map-get? nft-lendings token-id) err-lending-not-found))
+          (lender (get lender lending))
+          (borrower (unwrap! (get borrower lending) err-lending-not-found))
+          (collateral-amount (get collateral-amount lending))
+          (start-block (get start-block lending))
+          (duration-blocks (get duration-blocks lending)))
+        (asserts! (is-eq tx-sender lender) err-not-lender)
+        (asserts! (get active lending) err-lending-not-found)
+        (asserts! (> (- stacks-block-height start-block) duration-blocks) err-lending-active)
+        (try! (nft-transfer? design-nft token-id borrower lender))
+        (try! (as-contract (stx-transfer? collateral-amount tx-sender lender)))
+        (map-delete nft-lendings token-id)
+        (ok true)))
+
+(define-read-only (get-lending-info (token-id uint))
+    (ok (map-get? nft-lendings token-id)))
