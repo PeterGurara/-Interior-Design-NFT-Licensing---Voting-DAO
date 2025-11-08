@@ -27,6 +27,11 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 - **User Personalization**: Bookmark designs to build personal design portfolios
 - **Community Engagement**: Enhance discoverability and user interaction
 
+### 🔥 NFT Burning Mechanism
+- **Creator-Controlled Burning**: Original creators can permanently remove their NFTs from circulation
+- **Clean State Management**: Automatically clears all associated metadata, licenses, listings, auctions, and lending records
+- **Digital Rights Management**: Provides creators ultimate control over their intellectual property lifecycle
+
 ### 💰 NFT Lending System
 - **Collateral-Based Lending**: Lend NFTs with STX collateral for temporary access
 - **Flexible Terms**: Set custom lending fees and duration periods
@@ -67,6 +72,11 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 (add-to-favorites token-id)
 (remove-from-favorites token-id)
 (is-design-favorited user token-id)
+```
+
+### Burning System
+```clarity
+(burn-design-nft token-id)
 ```
 
 ### Lending System
@@ -148,6 +158,11 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 (contract-call? .Interior-Design-NFT-Licensing---Voting-DAO return-nft u1)
 ```
 
+#### 🔥 Burning a Design NFT
+```clarity
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO burn-design-nft u1)
+```
+
 ## 💰 Tokenomics
 
 ### Royalty Distribution
@@ -162,6 +177,7 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 - 🏆 Contest entry fees
 - 🤝 Marketplace transaction fees
 - 💰 NFT lending fees
+- 🔥 NFT burning for permanent removal
 
 ## 🏗️ Architecture
 
@@ -173,6 +189,7 @@ The contract implements several key data structures:
 - **royalty-splits**: Revenue distribution configurations
 - **user-favorites**: User favorite design mappings
 - **nft-lendings**: NFT lending agreements with collateral and terms
+- **burning-mechanism**: Creator-controlled NFT destruction with state cleanup
 
 ## 🧪 Testing
 
@@ -201,6 +218,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## 🌟 Roadmap
 
 - [x] 💰 NFT Lending System
+- [x] 🔥 NFT Burning Mechanism
 - [ ] 📱 Mobile app integration
 - [ ] 🔄 Cross-chain compatibility
 - [ ] 🤖 AI-powered design recommendations
@@ -213,6 +231,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Ownership checks prevent unauthorized actions
 - Voting mechanisms include anti-spam protections
 - License expiry enforced through block height validation
+- NFT burning requires creator authorization and cleans all associated state
 
 ---
 

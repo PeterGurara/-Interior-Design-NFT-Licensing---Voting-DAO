@@ -458,3 +458,16 @@
 
 (define-read-only (get-lending-info (token-id uint))
     (ok (map-get? nft-lendings token-id)))
+
+(define-public (burn-design-nft (token-id uint))
+    (let ((metadata (unwrap! (map-get? design-metadata token-id) (err u404)))
+          (creator (get creator metadata)))
+        (asserts! (is-eq tx-sender creator) err-owner-only)
+        (try! (nft-burn? design-nft token-id tx-sender))
+        (map-delete design-metadata token-id)
+        (map-delete royalty-splits token-id)
+        (map-delete design-licenses token-id)
+        (map-delete marketplace-listings token-id)
+        (map-delete design-auctions token-id)
+        (map-delete nft-lendings token-id)
+        (ok true)))
