@@ -24,12 +24,18 @@
 (define-constant err-not-lender (err u117))
 (define-constant err-lending-active (err u118))
 (define-constant err-lending-expired (err u119))
+(define-constant err-already-staked (err u120))
+(define-constant err-not-staked (err u121))
+(define-constant err-insufficient-treasury (err u122))
+(define-constant err-no-rewards (err u123))
 
 (define-non-fungible-token design-nft uint)
 
 (define-data-var last-token-id uint u0)
 (define-data-var dao-treasury uint u0)
 (define-data-var proposal-counter uint u0)
+(define-data-var contest-counter uint u0)
+(define-data-var staking-reward-rate uint u100)
 
 (define-map design-metadata uint {
     title: (string-ascii 50),
@@ -84,6 +90,15 @@
     votes: uint
 })
 
+(define-map design-contests uint {
+    creator: principal,
+    title: (string-ascii 100),
+    description: (string-ascii 500),
+    prize-pool: uint,
+    deadline: uint,
+    winner: (optional principal)
+})
+
 (define-map design-auctions uint {
     seller: principal,
     reserve-price: uint,
@@ -105,6 +120,12 @@
     duration-blocks: uint,
     start-block: uint,
     active: bool
+})
+
+(define-map nft-stakes uint {
+    staker: principal,
+    stake-time: uint,
+    rewards-claimed: uint
 })
 
 (define-public (mint-design-nft
@@ -132,6 +153,31 @@
         })
         (var-set last-token-id token-id)
         (ok token-id)))
+
+(define-public (batch-mint-design-nft (designs (list 5 {title: (string-ascii 50), design-type: (string-ascii 20), ipfs-hash: (string-ascii 64), royalty-rate: uint, recipient: principal})))
+    (let ((len (len designs)))
+        (if (>= len u1)
+            (let ((design (unwrap-panic (element-at designs u0)))
+                  (token-id (+ (var-get last-token-id) u1)))
+                (unwrap-panic (nft-mint? design-nft token-id (get recipient design)))
+                (map-set design-metadata token-id {
+                    title: (get title design),
+                    creator: tx-sender,
+                    design-type: (get design-type design),
+                    ipfs-hash: (get ipfs-hash design),
+                    royalty-rate: (get royalty-rate design),
+                    total-ratings: u0,
+                    rating-sum: u0
+                })
+                (map-set royalty-splits token-id {
+                    creator-percentage: u70,
+                    decorator-percentage: u15,
+                    vendor-percentage: u10,
+                    dao-percentage: u5
+                })
+                (var-set last-token-id token-id)
+                (ok true))
+            (ok true))))
 
 (define-public (list-for-sale (token-id uint) (price uint) (license-terms bool))
     (let ((owner (unwrap! (nft-get-owner? design-nft token-id) (err u404))))
@@ -241,6 +287,25 @@
             votes: (+ (get votes submission) u1)
         }))
         (ok true)))
+
+(define-public (create-design-contest
+    (title (string-ascii 100))
+    (description (string-ascii 500))
+    (prize-pool uint)
+    (duration-blocks uint))
+    (let ((contest-id (+ (var-get contest-counter) u1))
+          (deadline (+ stacks-block-height duration-blocks)))
+        (try! (stx-transfer? prize-pool tx-sender (as-contract tx-sender)))
+        (map-set design-contests contest-id {
+            creator: tx-sender,
+            title: title,
+            description: description,
+            prize-pool: prize-pool,
+            deadline: deadline,
+            winner: none
+        })
+        (var-set contest-counter contest-id)
+        (ok contest-id)))
 
 (define-public (distribute-royalties (token-id uint) (total-amount uint))
     (let ((splits (unwrap! (map-get? royalty-splits token-id) (err u404)))
@@ -374,6 +439,9 @@
 (define-read-only (get-contest-submission (submission-id uint))
     (ok (map-get? contest-submissions submission-id)))
 
+(define-read-only (get-design-contest (contest-id uint))
+    (ok (map-get? design-contests contest-id)))
+
 (define-read-only (get-auction-info (token-id uint))
     (ok (map-get? design-auctions token-id)))
 
@@ -459,6 +527,64 @@
 (define-read-only (get-lending-info (token-id uint))
     (ok (map-get? nft-lendings token-id)))
 
+(define-public (stake-nft (token-id uint))
+    (let ((owner (unwrap! (nft-get-owner? design-nft token-id) (err u404))))
+        (asserts! (is-eq tx-sender owner) err-not-token-owner)
+        (asserts! (is-none (map-get? nft-stakes token-id)) err-already-staked)
+        (asserts! (is-none (map-get? marketplace-listings token-id)) err-listing-exists)
+        (asserts! (is-none (map-get? design-auctions token-id)) err-auction-exists)
+        (asserts! (is-none (map-get? nft-lendings token-id)) err-lending-exists)
+        (try! (nft-transfer? design-nft token-id tx-sender (as-contract tx-sender)))
+        (map-set nft-stakes token-id {
+            staker: tx-sender,
+            stake-time: stacks-block-height,
+            rewards-claimed: u0
+        })
+        (ok true)))
+
+(define-public (unstake-nft (token-id uint))
+    (let ((stake (unwrap! (map-get? nft-stakes token-id) err-not-staked))
+          (staker (get staker stake))
+          (stake-time (get stake-time stake))
+          (rewards-claimed (get rewards-claimed stake))
+          (blocks-staked (- stacks-block-height stake-time))
+          (reward-rate (var-get staking-reward-rate))
+          (accrued-rewards (* blocks-staked reward-rate))
+          (unclaimed-rewards (- accrued-rewards rewards-claimed)))
+        (asserts! (is-eq tx-sender staker) err-not-token-owner)
+        (try! (as-contract (nft-transfer? design-nft token-id tx-sender staker)))
+        (if (> unclaimed-rewards u0)
+            (let ((treasury (var-get dao-treasury)))
+                (asserts! (>= treasury unclaimed-rewards) err-insufficient-treasury)
+                (try! (as-contract (stx-transfer? unclaimed-rewards tx-sender staker)))
+                (var-set dao-treasury (- treasury unclaimed-rewards)))
+            true)
+        (map-delete nft-stakes token-id)
+        (ok true)))
+
+(define-public (claim-staking-rewards (token-id uint))
+    (let ((stake (unwrap! (map-get? nft-stakes token-id) err-not-staked))
+          (staker (get staker stake))
+          (stake-time (get stake-time stake))
+          (rewards-claimed (get rewards-claimed stake))
+          (blocks-staked (- stacks-block-height stake-time))
+          (reward-rate (var-get staking-reward-rate))
+          (accrued-rewards (* blocks-staked reward-rate))
+          (unclaimed-rewards (- accrued-rewards rewards-claimed)))
+        (asserts! (is-eq tx-sender staker) err-not-token-owner)
+        (asserts! (> unclaimed-rewards u0) err-no-rewards)
+        (let ((treasury (var-get dao-treasury)))
+            (asserts! (>= treasury unclaimed-rewards) err-insufficient-treasury)
+            (try! (as-contract (stx-transfer? unclaimed-rewards tx-sender staker)))
+            (var-set dao-treasury (- treasury unclaimed-rewards))
+            (map-set nft-stakes token-id (merge stake {
+                rewards-claimed: accrued-rewards
+            }))
+            (ok true))))
+
+(define-read-only (get-stake-info (token-id uint))
+    (ok (map-get? nft-stakes token-id)))
+
 (define-public (burn-design-nft (token-id uint))
     (let ((metadata (unwrap! (map-get? design-metadata token-id) (err u404)))
           (creator (get creator metadata)))
@@ -470,4 +596,5 @@
         (map-delete marketplace-listings token-id)
         (map-delete design-auctions token-id)
         (map-delete nft-lendings token-id)
+        (map-delete nft-stakes token-id)
         (ok true)))

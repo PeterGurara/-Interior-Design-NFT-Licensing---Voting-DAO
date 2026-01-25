@@ -27,6 +27,12 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 - **User Personalization**: Bookmark designs to build personal design portfolios
 - **Community Engagement**: Enhance discoverability and user interaction
 
+### 🎉 Design Contest Creation
+- **Create Contests**: Launch design contests with custom titles, descriptions, prize pools, and deadlines
+- **Prize Pool Management**: Secure STX prizes in escrow for winner distribution
+- **Community Engagement**: Foster creativity and participation through structured competitions
+- **Deadline Enforcement**: Automatic deadline tracking using block height
+
 ### 🔥 NFT Burning Mechanism
 - **Creator-Controlled Burning**: Original creators can permanently remove their NFTs from circulation
 - **Clean State Management**: Automatically clears all associated metadata, licenses, listings, auctions, and lending records
@@ -37,6 +43,12 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 - **Flexible Terms**: Set custom lending fees and duration periods
 - **Secure Returns**: Automatic NFT return or collateral claim on expiry
 - **Risk Management**: Built-in protections for lenders and borrowers
+
+### 💎 NFT Staking for Rewards
+- **Passive Income Generation**: Stake design NFTs to earn rewards from the DAO treasury
+- **Time-Based Rewards**: Accrue rewards based on staking duration and configurable rates
+- **Flexible Claiming**: Claim rewards at any time without unstaking or unstake to claim all
+- **Treasury-Backed Incentives**: Rewards funded directly from DAO treasury for sustainable ecosystem growth
 
 ## 📋 Contract Functions
 
@@ -88,10 +100,20 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 (get-lending-info token-id)
 ```
 
+### Staking System
+```clarity
+(stake-nft token-id)
+(unstake-nft token-id)
+(claim-staking-rewards token-id)
+(get-stake-info token-id)
+```
+
 ### Contest System
 ```clarity
 (submit-to-contest contest-id submission-hash)
 (vote-contest-submission submission-id)
+(create-design-contest title description prize-pool duration-blocks)
+(get-design-contest contest-id)
 ```
 
 ## 🛠️ Getting Started
@@ -138,6 +160,15 @@ A revolutionary Clarity smart contract that empowers interior designers to token
   u1440)
 ```
 
+#### 🎉 Creating a Design Contest
+```clarity
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO create-design-contest
+  "Summer Design Challenge"
+  "Create the most innovative summer interior design"
+  u1000000
+  u1440)
+```
+
 #### 💖 Favoriting a Design
 ```clarity
 (contract-call? .Interior-Design-NFT-Licensing---Voting-DAO add-to-favorites u1)
@@ -163,6 +194,21 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 (contract-call? .Interior-Design-NFT-Licensing---Voting-DAO burn-design-nft u1)
 ```
 
+#### 💎 Staking an NFT
+```clarity
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO stake-nft u1)
+```
+
+#### 💰 Claiming Staking Rewards
+```clarity
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO claim-staking-rewards u1)
+```
+
+#### 🔓 Unstaking an NFT
+```clarity
+(contract-call? .Interior-Design-NFT-Licensing---Voting-DAO unstake-nft u1)
+```
+
 ## 💰 Tokenomics
 
 ### Royalty Distribution
@@ -177,7 +223,8 @@ A revolutionary Clarity smart contract that empowers interior designers to token
 - 🏆 Contest entry fees
 - 🤝 Marketplace transaction fees
 - 💰 NFT lending fees
-- 🔥 NFT burning for permanent removal
+- 💎 NFT staking rewards
+- � NFT burning for permanent removal
 
 ## 🏗️ Architecture
 
@@ -188,7 +235,10 @@ The contract implements several key data structures:
 - **dao-proposals**: Governance proposals and voting data
 - **royalty-splits**: Revenue distribution configurations
 - **user-favorites**: User favorite design mappings
+- **design-contests**: Contest details including creator, title, prize pool, and deadline
+- **contest-counter**: Tracks the total number of contests created
 - **nft-lendings**: NFT lending agreements with collateral and terms
+- **nft-stakes**: NFT staking records with staker, stake time, and claimed rewards
 - **burning-mechanism**: Creator-controlled NFT destruction with state cleanup
 
 ## 🧪 Testing
@@ -219,6 +269,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [x] 💰 NFT Lending System
 - [x] 🔥 NFT Burning Mechanism
+- [x] 💎 NFT Staking for Rewards
 - [ ] 📱 Mobile app integration
 - [ ] 🔄 Cross-chain compatibility
 - [ ] 🤖 AI-powered design recommendations
@@ -232,6 +283,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Voting mechanisms include anti-spam protections
 - License expiry enforced through block height validation
 - NFT burning requires creator authorization and cleans all associated state
+- Contest prize pools are securely held in contract escrow until winner selection
+- Deadline enforcement prevents late submissions or manipulations
 
 ---
 
